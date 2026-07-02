@@ -1,5 +1,5 @@
 import "server-only"
-import { JSDOM } from "jsdom"
+import { parseHTML } from "linkedom"
 import { Readability } from "@mozilla/readability"
 import { extractText, getDocumentProxy } from "unpdf"
 import type { AssetImage } from "@/lib/types"
@@ -22,14 +22,19 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`)
   const html = await res.text()
 
-  const dom = new JSDOM(html, { url })
-  const doc = dom.window.document
+  // linkedom is serverless-safe (jsdom's transitive ESM deps break on Vercel).
+  const doc = parseHTML(html).document as unknown as Document
 
   const images = extractImages(doc, url)
 
-  // Readability mutates the doc, so pull images first.
-  const reader = new Readability(doc)
-  const article = reader.parse()
+  // Readability mutates the doc, so pull images first. Fall back to raw body text
+  // if Readability can't parse this DOM.
+  let article: { title?: string | null; textContent?: string | null } | null = null
+  try {
+    article = new Readability(doc).parse()
+  } catch {
+    article = null
+  }
 
   const title =
     article?.title?.trim() ||
