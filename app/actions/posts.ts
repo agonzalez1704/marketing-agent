@@ -1,10 +1,45 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { dbDeletePost, dbDuplicatePost, dbGetPost, dbListPosts, dbSetPostContent } from "@/lib/db"
+import {
+  dbCreatePosts,
+  dbDeletePost,
+  dbDuplicatePost,
+  dbGetClientProfileId,
+  dbGetPost,
+  dbListPosts,
+  dbSetPostContent,
+} from "@/lib/db"
 import { refineContent } from "@/lib/ai"
-import { PLATFORM_CHAR_LIMIT } from "@/lib/platforms"
+import { PLATFORM_CHAR_LIMIT, PLATFORMS } from "@/lib/platforms"
 import type { Platform } from "@/lib/types"
+
+const VALID_PLATFORMS = new Set(PLATFORMS.map((p) => p.key))
+
+/**
+ * Create draft posts directly (no scrape / analysis / AI) — e.g. to post a video
+ * the user already has. Media can be an uploaded or pasted URL (videos publish as reels).
+ */
+export async function createManualPosts(
+  clientId: string,
+  input: { platforms: Platform[]; content: string; mediaUrls: string[] },
+): Promise<{ created: number }> {
+  if (!(await dbGetClientProfileId(clientId))) throw new Error("Client not found")
+  const content = input.content.trim()
+  const platforms = input.platforms.filter((p) => VALID_PLATFORMS.has(p))
+  if (platforms.length === 0) throw new Error("Pick at least one platform")
+  if (!content && input.mediaUrls.length === 0) throw new Error("Add a caption or media")
+
+  const posts = await dbCreatePosts(
+    clientId,
+    null,
+    platforms.map((platform) => ({ platform, content, mediaUrls: input.mediaUrls })),
+  )
+  revalidatePath(`/clients/${clientId}/posts`)
+  revalidatePath(`/clients/${clientId}/calendar`)
+  revalidatePath(`/clients/${clientId}`)
+  return { created: posts.length }
+}
 
 export async function listPosts(clientId: string) {
   return dbListPosts(clientId)
