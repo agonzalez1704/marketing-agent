@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { Loader2, ImagePlus, RefreshCw, Trash2, Check } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { uploadClientLogo, removeClientLogo } from "@/app/actions/logo"
+import { setClientLogo, removeClientLogo } from "@/app/actions/logo"
+import { uploadFileDirect } from "@/lib/upload-client"
 
 const ACCEPT = ["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/gif"]
 const MAX_BYTES = 2 * 1024 * 1024
@@ -50,9 +51,8 @@ export function LogoUpload({
     setPreview(localUrl)
     setBusy(true)
     try {
-      const fd = new FormData()
-      fd.append("file", file)
-      const { url } = await uploadClientLogo(clientId, fd)
+      const { url, key } = await uploadFileDirect(clientId, "client-logos", file)
+      await setClientLogo(clientId, url, key)
       setPreview(url)
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 1600)

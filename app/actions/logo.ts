@@ -36,6 +36,20 @@ export async function uploadClientLogo(clientId: string, formData: FormData): Pr
   return { url: uploaded.url }
 }
 
+/** Point the client at an already-uploaded logo (browser did the direct upload). */
+export async function setClientLogo(clientId: string, url: string, key: string): Promise<void> {
+  const profileId = await dbGetClientProfileId(clientId)
+  if (!profileId) throw new Error("Client not found")
+
+  const oldKey = await dbGetClientLogoKey(clientId)
+  await dbSetClientLogo(clientId, url, key)
+  if (oldKey && oldKey !== key) {
+    await insforge.storage.from(BUCKET).remove(oldKey).catch(() => {})
+  }
+  revalidatePath("/")
+  revalidatePath(`/clients/${clientId}`)
+}
+
 export async function removeClientLogo(clientId: string): Promise<void> {
   const key = await dbGetClientLogoKey(clientId)
   await dbSetClientLogo(clientId, null, null)

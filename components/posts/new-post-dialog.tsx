@@ -20,7 +20,7 @@ import { isVideoUrl } from "@/lib/media"
 import { PLATFORMS } from "@/lib/platforms"
 import type { Platform } from "@/lib/types"
 import { createManualPosts } from "@/app/actions/posts"
-import { uploadMedia } from "@/app/actions/post-media"
+import { uploadFileDirect } from "@/lib/upload-client"
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
 
@@ -53,7 +53,7 @@ export function NewPostDialog({
   async function onUpload(file: File) {
     setBusy(true)
     try {
-      const { url } = await uploadMedia(clientId, toFormData(file))
+      const { url } = await uploadFileDirect(clientId, "post-media", file)
       setMediaUrl(url)
     } catch (e) {
       toast.error("Upload failed", { description: e instanceof Error ? e.message : "Unknown error" })
@@ -198,10 +198,4 @@ export function NewPostDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function toFormData(file: File): FormData {
-  const fd = new FormData()
-  fd.append("file", file)
-  return fd
 }

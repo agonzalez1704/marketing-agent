@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { isVideoUrl } from "@/lib/media"
-import { setPostMedia, uploadPostImage } from "@/app/actions/post-media"
+import { setPostMedia } from "@/app/actions/post-media"
 import { generatePoster } from "@/app/actions/poster"
+import { uploadFileDirect } from "@/lib/upload-client"
 
 const ACCEPT_IMG = ["image/png", "image/jpeg", "image/webp", "image/gif"]
 const ACCEPT_VIDEO = ["video/mp4", "video/quicktime", "video/webm"]
@@ -107,9 +108,7 @@ export function PostMediaManager({
     if (isVideo && file.size > 50 * 1024 * 1024) return toast.error("Video must be under 50 MB (or paste a hosted URL)")
     setBusy(true)
     try {
-      const fd = new FormData()
-      fd.append("file", file)
-      const { url: uploaded } = await uploadPostImage(clientId, postId, fd)
+      const { url: uploaded } = await uploadFileDirect(clientId, "post-media", file)
       await save([...media, uploaded])
     } catch (e) {
       toast.error("Upload failed", { description: e instanceof Error ? e.message : "Unknown error" })
