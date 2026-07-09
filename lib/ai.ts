@@ -174,14 +174,32 @@ async function buildVisionContent(text: string, imageUrls: string[]): Promise<Vi
       if (!res.ok) continue
       const buf = Buffer.from(await res.arrayBuffer())
       if (buf.length > 5 * 1024 * 1024) continue // Claude image size cap
-      // InsForge Storage serves "binary/octet-stream" — don't trust the header.
-      // Use a real image content-type (header if it's an image, else URL extension).
-      parts.push({ type: "image_url", image_url: { url: `data:${resolveImageMime(url, res)};base64,${buf.toString("base64")}` } })
+      // InsForge Storage serves "binary/octet-stream" and file extensions lie
+      // (a .png can hold JPEG bytes). Anthropic validates magic bytes vs the
+      // declared mime and 400s on mismatch — so sniff the actual bytes.
+      const mime = sniffImageMime(buf) ?? resolveImageMime(url, res)
+      parts.push({ type: "image_url", image_url: { url: `data:${mime};base64,${buf.toString("base64")}` } })
     } catch {
       /* skip unfetchable images */
     }
   }
   return parts
+}
+
+// Detect the real image type from the file's magic bytes. Returns null for
+// formats Claude can't take (or unrecognized bytes) so the caller can fall back.
+function sniffImageMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg"
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png"
+  // GIF: "GIF8"
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return "image/gif"
+  // WEBP: "RIFF"...."WEBP"
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50)
+    return "image/webp"
+  return null
 }
 
 function resolveImageMime(url: string, res: Response): string {
